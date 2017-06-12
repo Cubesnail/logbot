@@ -28,18 +28,20 @@ def post_facebook_message(fbid, recevied_message):
     if not reply:
         reply = "I didn't understand! Send 'test', 'exam', 'quiz'"
     answer_list = Question.objects
-    
+    print(tokens)
     user_details_url = "https://graph.facebook.com/v2.6/%s"%fbid 
     user_details_params = {'fields':'first_name,last_name,profile_pic', 'access_token':PAGE_ACCESS_TOKEN} 
     user_details = requests.get(user_details_url, user_details_params).json()
     pprint(user_details)
-    #look for person via fbid
+    #look for person via first_name
     try:
-        person = Person.objects.get(pk=user_details['fbid'])
+        person = Person.objects.get(fbid__startswith=fbid)
         reply = 'old person'
     except Person.DoesNotExist:
         # add person
         reply = 'new person'
+        new_person = Person.objects.create(first_name=user_details['first_name'],last_name=user_details['last_name'],fbid = fbid)
+        new_person.save()
     #if user_details['fbid'] not in 
     #if user_details['first_name'] == 'Dillon' and token in ['penis','shit','fuck']:
     #    reply = 'Send my bot a real message pls'
@@ -47,6 +49,9 @@ def post_facebook_message(fbid, recevied_message):
     #    reply = 'hi '+user_details['first_name']+'! ' + reply
     #if user_details['first_name'] in ['Derrick', 'Dillon', 'Liz']:
     #    reply = "fbid is:" + fbid
+    if token in ['info']:
+        reply = '{0} {1} {2}'.format(person.first_name, person.last_name, person.fbid)
+    
     post_message_url = 'https://graph.facebook.com/v2.6/me/messages?access_token=%s'%PAGE_ACCESS_TOKEN
     response_msg = json.dumps({"recipient":{"id":fbid}, "message":{"text":reply}})
     status = requests.post(post_message_url, headers={"Content-Type": "application/json"},data=response_msg)
