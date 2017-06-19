@@ -7,7 +7,7 @@ from django.http.response import HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 
-from .models import Question, Answer, Person
+from .models import Question, Answer, Person, FBMessage
 
 PAGE_ACCESS_TOKEN = 'EAAWFFadPFaQBAGgGgJdQTlI9FO1il77J5hiSVeaDYBF5Bwln1ZCeEuqMjavAoYP0U9CMgwWKclLBRZAoCXFilZCMgG5S1JTBoaHrugXyGLKO1eQZAnVsAVxNZBMH6zUgOlI2PEs53nVhcjCD3qnHuHvX0vctKhZAxMsKo4gCXwvQZDZD'
 dictionary = {
@@ -17,6 +17,58 @@ dictionary = {
 }
 
 # Create your views here.
+
+
+def get_messages(fbid):
+    """
+    @param fbid: str
+    @rtype fb_messages_recieved" 
+    """
+    try:
+        fb_messages_recieved = FBMessage.objects.get(sender__iexact=fbid)
+    except FBMessage.DoesNotExist:
+        fb_messages_recieved = []
+
+    try:
+        fb_messages_sent = FBMessage.objects.get(recipient__iexact=fbid)
+    except FBMessage.DoesNotExist:
+        fb_messages_sent = []
+
+    return fb_messages_recieved
+
+def get_state(fbid):
+    """
+    states: 
+    0 = new user -> 1
+
+    1 = neutral state 
+
+    2 = new question -> 3
+    3 = question schedule -> 4
+    4 = edit answers -> 1
+
+    5 = edit question -> 2
+    6 = delete question -> 7
+    7 = get question -> 1
+    
+    8 = ask question -> 9
+    9 = answer confirmation -> 1
+    """
+    
+    #get last message
+
+    state = 0
+    messages = get_messages(fbid)
+    if messages == []:
+        state = 0
+    else:
+        last_message = message[len(messages)-1]
+
+    if last_message == "New Question":
+        state = 1  
+    return state
+        
+
 def post_facebook_message(fbid, recevied_message):
     # Remove all punctuations, lower case the text and split it based on space
     tokens = re.sub(r"[^a-zA-Z0-9\s]",' ',recevied_message).lower().split()
@@ -35,26 +87,46 @@ def post_facebook_message(fbid, recevied_message):
     pprint(user_details)
     #look for person via first_name
     try:
-        person = Person.objects.get(fbid__startswith=fbid)
+        person = Person.objects.get(fbid__iexact=fbid)
         reply = 'old person'
     except Person.DoesNotExist:
         # add person
         reply = 'new person'
         new_person = Person.objects.create(first_name=user_details['first_name'],last_name=user_details['last_name'],fbid = fbid)
         new_person.save()
-    #if user_details['fbid'] not in 
-    #if user_details['first_name'] == 'Dillon' and token in ['penis','shit','fuck']:
-    #    reply = 'Send my bot a real message pls'
-    #else:
-    #    reply = 'hi '+user_details['first_name']+'! ' + reply
-    #if user_details['first_name'] in ['Derrick', 'Dillon', 'Liz']:
-    #    reply = "fbid is:" + fbid
+    
     if token in ['info']:
         reply = '{0} {1} {2}'.format(person.first_name, person.last_name, person.fbid)
     
     post_message_url = 'https://graph.facebook.com/v2.6/me/messages?access_token=%s'%PAGE_ACCESS_TOKEN
     response_msg = json.dumps({"recipient":{"id":fbid}, "message":{"text":reply}})
-    status = requests.post(post_message_url, headers={"Content-Type": "application/json"},data=response_msg)
+    test_msg = json.dumps({
+    "recipient":{
+    "id":fbid},
+      "message":{
+     "attachment":{
+          "type":"template",
+      "payload":{
+        "template_type":"button",
+        "text":"What do you want to do next?",
+        "buttons":[
+          {
+            "type":"web_url",
+            "url":"https://logbot.com",
+            "title":"Show Website"
+          },
+          {
+            "type":"postback",
+            "title":"Start Chatting",
+            "payload":"what's a payload"
+          }
+        ]
+      }
+    }
+}
+}
+    )
+    status = requests.post(post_message_url, headers={"Content-Type": "application/json"},data=test_msg)
     #pprint(status.json())
 
 class logbot_view(generic.View):
